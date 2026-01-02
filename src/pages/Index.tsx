@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { api, auth, User, Order as ApiOrder } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 
 interface CartItem {
   id: string;
@@ -28,10 +32,81 @@ interface Order {
 }
 
 const Index = () => {
+  const { toast } = useToast();
+  const [user, setUser] = useState<User | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [selectedBank, setSelectedBank] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [telegramId, setTelegramId] = useState('');
+  const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const token = auth.getToken();
+    const savedUser = auth.getUser();
+    if (token && savedUser) {
+      setUser(savedUser);
+      loadOrders(token);
+    }
+  }, []);
+
+  const loadOrders = async (token: string) => {
+    try {
+      const data = await api.getOrders(token);
+      setOrders(data.orders);
+    } catch (error) {
+      console.error('Ошибка загрузки заказов:', error);
+    }
+  };
+
+  const handleAuth = async () => {
+    setLoading(true);
+    try {
+      const data = authMode === 'login' 
+        ? await api.login(email, password)
+        : await api.register(email, password, telegramId);
+      
+      auth.setToken(data.token);
+      auth.setUser(data.user);
+      setUser(data.user);
+      setShowAuth(false);
+      setEmail('');
+      setPassword('');
+      setTelegramId('');
+      
+      toast({
+        title: authMode === 'login' ? 'Вход выполнен' : 'Регистрация успешна',
+        description: `Добро пожаловать, ${data.user.email}!`
+      });
+      
+      if (data.token) {
+        loadOrders(data.token);
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Ошибка',
+        description: error.message,
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    auth.logout();
+    setUser(null);
+    setOrders([]);
+    toast({
+      title: 'Выход выполнен',
+      description: 'До встречи!'
+    });
+  };
 
   const starPackages = [
     { amount: 100, price: 89, popular: false, discount: '-40%' },
@@ -107,14 +182,12 @@ const Index = () => {
     { name: 'Открытие', logo: '🔵' },
   ];
 
-  const orderHistory: Order[] = [
-    { id: '1', date: '15.12.2024', type: 'star', amount: 1000, price: 749, status: 'completed' },
-    { id: '2', date: '10.12.2024', type: 'premium', months: 6, price: 849, status: 'completed' },
-    { id: '3', date: '05.12.2024', type: 'star', amount: 500, price: 399, status: 'completed' },
-  ];
-
   const addToCart = (item: CartItem) => {
     setCart([...cart, item]);
+    toast({
+      title: 'Добавлено в корзину',
+      description: item.type === 'star' ? `${item.amount} Stars` : `Premium ${item.months} мес`
+    });
   };
 
   const removeFromCart = (index: number) => {
@@ -125,12 +198,53 @@ const Index = () => {
     return cart.reduce((sum, item) => sum + item.price, 0);
   };
 
-  const handleCheckout = () => {
-    if (!selectedBank) return;
-    alert(`Переход к оплате через ${selectedBank}. Сумма: ${getTotalPrice()} ₽`);
-    setShowCheckout(false);
-    setCart([]);
-    setSelectedBank('');
+  const handleCheckout = async () => {
+    if (!user) {
+      setShowAuth(true);
+      setShowCheckout(false);
+      toast({
+        title: 'Требуется авторизация',
+        description: 'Войдите или зарегистрируйтесь для оформления заказа'
+      });
+      return;
+    }
+
+    if (!telegramId) {
+      toast({
+        title: 'Укажите Telegram ID',
+        description: 'Введите ваш Telegram ID для получения Stars/Premium',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = auth.getToken();
+      if (!token) throw new Error('Токен не найден');
+
+      for (const item of cart) {
+        const payment = await api.createPayment(
+          token,
+          item.type,
+          item.price,
+          item.amount,
+          item.months,
+          telegramId
+        );
+        
+        window.location.href = payment.payment_url;
+        return;
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Ошибка оплаты',
+        description: error.message,
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -219,13 +333,20 @@ const Index = () => {
                 </div>
               </SheetContent>
             </Sheet>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowProfile(true)}
-            >
-              <Icon name="User" className="h-4 w-4" />
-            </Button>
+{user ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowProfile(true)}
+              >
+                <Icon name="User" className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button onClick={() => setShowAuth(true)}>
+                <Icon name="LogIn" className="mr-2 h-4 w-4" />
+                Войти
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -546,32 +667,26 @@ const Index = () => {
                 <span className="text-2xl font-bold text-blue-600">{getTotalPrice()} ₽</span>
               </div>
             </div>
-            <div>
-              <p className="text-sm font-medium mb-3">Выберите банк:</p>
-              <div className="grid grid-cols-2 gap-2">
-                {banks.map((bank) => (
-                  <Button
-                    key={bank.name}
-                    variant={selectedBank === bank.name ? 'default' : 'outline'}
-                    className="justify-start"
-                    onClick={() => setSelectedBank(bank.name)}
-                  >
-                    <span className="mr-2">{bank.logo}</span>
-                    {bank.name}
-                  </Button>
-                ))}
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="telegram-checkout">Ваш Telegram ID</Label>
+              <Input
+                id="telegram-checkout"
+                placeholder="@username или ID"
+                value={telegramId}
+                onChange={(e) => setTelegramId(e.target.value)}
+              />
+              <p className="text-xs text-slate-500">Куда доставить Stars/Premium</p>
             </div>
           </div>
           <DialogFooter>
             <Button
               className="w-full"
               size="lg"
-              disabled={!selectedBank}
+              disabled={!telegramId || loading}
               onClick={handleCheckout}
             >
               <Icon name="CreditCard" className="mr-2 h-4 w-4" />
-              Оплатить {getTotalPrice()} ₽ через {selectedBank || 'СБП'}
+              {loading ? 'Загрузка...' : `Оплатить ${getTotalPrice()} ₽`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -593,8 +708,11 @@ const Index = () => {
                 </AvatarFallback>
               </Avatar>
               <div>
-                <h3 className="font-semibold text-lg">Иван Петров</h3>
-                <p className="text-sm text-slate-600">ivan@example.com</p>
+                <h3 className="font-semibold text-lg">{user?.email}</h3>
+                <Button variant="outline" size="sm" className="mt-2" onClick={handleLogout}>
+                  <Icon name="LogOut" className="mr-2 h-3 w-3" />
+                  Выйти
+                </Button>
               </div>
             </div>
             <Separator />
@@ -604,7 +722,10 @@ const Index = () => {
                 История заказов
               </h4>
               <div className="space-y-3">
-                {orderHistory.map((order) => (
+                {orders.length === 0 ? (
+                  <p className="text-sm text-slate-500 text-center py-8">Пока нет заказов</p>
+                ) : (
+                  orders.map((order) => (
                   <Card key={order.id}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
@@ -625,18 +746,79 @@ const Index = () => {
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-blue-600">{order.price} ₽</p>
-                          <Badge variant="secondary" className="text-xs text-green-600 border-green-200">
-                            <Icon name="CheckCircle" className="h-3 w-3 mr-1" />
-                            Выполнен
+                          <Badge variant="secondary" className={`text-xs ${
+                            order.status === 'completed' ? 'text-green-600 border-green-200' :
+                            order.status === 'pending' ? 'text-yellow-600 border-yellow-200' :
+                            'text-red-600 border-red-200'
+                          }`}>
+                            <Icon name={order.status === 'completed' ? 'CheckCircle' : order.status === 'pending' ? 'Clock' : 'XCircle'} className="h-3 w-3 mr-1" />
+                            {order.status === 'completed' ? 'Выполнен' : order.status === 'pending' ? 'В обработке' : 'Ошибка'}
                           </Badge>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAuth} onOpenChange={setShowAuth}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>{authMode === 'login' ? 'Вход' : 'Регистрация'}</DialogTitle>
+            <DialogDescription>
+              {authMode === 'login' ? 'Войдите в свой аккаунт' : 'Создайте новый аккаунт'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Пароль</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Минимум 6 символов"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            {authMode === 'register' && (
+              <div className="space-y-2">
+                <Label htmlFor="telegram">Telegram ID (опционально)</Label>
+                <Input
+                  id="telegram"
+                  placeholder="@username или ID"
+                  value={telegramId}
+                  onChange={(e) => setTelegramId(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex-col gap-2">
+            <Button className="w-full" onClick={handleAuth} disabled={loading}>
+              {loading ? 'Загрузка...' : authMode === 'login' ? 'Войти' : 'Зарегистрироваться'}
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+            >
+              {authMode === 'login' ? 'Нет аккаунта? Зарегистрируйтесь' : 'Уже есть аккаунт? Войдите'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

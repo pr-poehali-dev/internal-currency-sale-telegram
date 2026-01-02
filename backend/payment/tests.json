@@ -1,0 +1,41 @@
+{
+  "tests": [
+    {
+      "name": "Create payment without auth",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "create",
+        "order_type": "star",
+        "amount": 1000,
+        "price": 749
+      },
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Handle webhook",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "webhook",
+        "event": "payment.succeeded",
+        "object": {
+          "id": "test-payment-id",
+          "status": "succeeded",
+          "metadata": {
+            "order_id": 1
+          }
+        }
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "message": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
