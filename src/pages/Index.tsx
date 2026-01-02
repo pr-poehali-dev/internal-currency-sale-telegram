@@ -138,27 +138,28 @@ const Index = () => {
           </div>
         </section>
 
-        <section id="pricing" className="container py-24 bg-accent/30">
-          <div className="text-center space-y-4 mb-12 animate-fade-in">
-            <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">Выберите тариф</h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Гибкие пакеты Stars и Premium подписок для любых задач
-            </p>
-          </div>
+        <section id="pricing" className="w-full py-24 bg-accent/30">
+          <div className="container">
+            <div className="text-center space-y-4 mb-12 animate-fade-in">
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">Выберите тариф</h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                Гибкие пакеты Stars и Premium подписок для любых задач
+              </p>
+            </div>
 
-          <Tabs defaultValue="stars" className="max-w-6xl mx-auto">
-            <TabsList className="grid w-full grid-cols-2 mb-8">
-              <TabsTrigger value="stars" className="text-base">
-                <Icon name="Star" className="mr-2 h-4 w-4" />
-                Telegram Stars
-              </TabsTrigger>
-              <TabsTrigger value="premium" className="text-base">
-                <Icon name="Crown" className="mr-2 h-4 w-4" />
-                Premium подписка
-              </TabsTrigger>
-            </TabsList>
+            <Tabs defaultValue="stars" className="max-w-6xl mx-auto">
+              <TabsList className="grid w-full grid-cols-2 mb-8">
+                <TabsTrigger value="stars" className="text-base">
+                  <Icon name="Star" className="mr-2 h-4 w-4" />
+                  Telegram Stars
+                </TabsTrigger>
+                <TabsTrigger value="premium" className="text-base">
+                  <Icon name="Crown" className="mr-2 h-4 w-4" />
+                  Premium подписка
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="stars" className="space-y-4">
+              <TabsContent value="stars" className="space-y-4">
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {starPackages.map((pkg) => (
                   <Card key={pkg.amount} className={`relative hover-scale ${pkg.popular ? 'border-primary shadow-lg' : ''}`}>
@@ -233,7 +234,8 @@ const Index = () => {
                 ))}
               </div>
             </TabsContent>
-          </Tabs>
+            </Tabs>
+          </div>
         </section>
 
         <section id="reviews" className="container py-24">
@@ -287,8 +289,9 @@ const Index = () => {
           </div>
         </section>
 
-        <section id="contact" className="container py-24 bg-accent/30">
-          <div className="max-w-2xl mx-auto">
+        <section id="contact" className="w-full py-24 bg-accent/30">
+          <div className="container">
+            <div className="max-w-2xl mx-auto">
             <div className="text-center space-y-4 mb-12 animate-fade-in">
               <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">Свяжитесь с нами</h2>
               <p className="text-xl text-muted-foreground">
@@ -341,6 +344,7 @@ const Index = () => {
                 </div>
               </CardContent>
             </Card>
+            </div>
           </div>
         </section>
       </main>
